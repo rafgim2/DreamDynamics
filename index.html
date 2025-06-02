@@ -21,7 +21,7 @@
       /* Marco verde alrededor de todo lo que se muestra */
       border: 5px solid #008000;
       padding: 20px;
-      /* Opcional: ligero fondo blanco para separar del verde pastel */
+      /* Ligero fondo blanco para separar del verde pastel */
       background-color: #ffffff;
       box-sizing: border-box;
       border-radius: 8px;
@@ -120,6 +120,14 @@
     <h1>DreamDynamics</h1>
     <a href="https://www.youtube.com/@rafgim" target="_blank" class="credit">© By Rafael Gimeno</a>
 
+    <!-- Selector para número de matices -->
+    <label for="num-dynamics">Cantidad de matices:</label>
+    <select id="num-dynamics">
+      <option value="6" selected>6 matices</option>
+      <option value="4">4 matices</option>
+      <option value="2">2 matices</option>
+    </select>
+
     <label for="midi-inputs">1. Selecciona el dispositivo MIDI:</label>
     <select id="midi-inputs">
       <option value="">(Cargando dispositivos…)</option>
@@ -127,13 +135,7 @@
 
     <label for="target-dynamic">2. Selecciona el matiz objetivo:</label>
     <select id="target-dynamic">
-      <option value="">-- Ninguno --</option>
-      <option value="pp">pp</option>
-      <option value="p">p</option>
-      <option value="mp">mp</option>
-      <option value="mf">mf</option>
-      <option value="f">f</option>
-      <option value="ff">ff</option>
+      <!-- Se llenará dinámicamente -->
     </select>
 
     <div id="meter-container">
@@ -154,29 +156,19 @@
 
   <script>
     // -------------------------------------------------------
-    // 1) Definición de rangos y colores para cada matiz
-    // -------------------------------------------------------
-    const dynamics = [
-      { name: 'pp',  min: 20,  max: 33,  color: '#6495ED' },
-      { name: 'p',   min: 34,  max: 46,  color: '#3CB371' },
-      { name: 'mp',  min: 47,  max: 59,  color: '#FFD700' },
-      { name: 'mf',  min: 60,  max: 72,  color: '#FFA500' },
-      { name: 'f',   min: 73,  max: 85,  color: '#FF4500' },
-      { name: 'ff',  min: 86,  max: 100, color: '#8B008B' }
-    ];
-
-    function dynamicFromVelocity(vel) {
-      return dynamics.find(d => vel >= d.min && vel <= d.max) || null;
-    }
-
-    // -------------------------------------------------------
-    // 2) Variables globales y elementos del DOM
+    // 1) Variables globales y elementos del DOM
     // -------------------------------------------------------
     let midiAccess = null;
     let selectedInput = null;
     let targetDynamic = null;
     let failureCount = 0;
+    let dynamics = []; // Se asignará dinámicamente
 
+    // Valores base para rangos (20 a 100)
+    const BASE_MIN = 20;
+    const BASE_MAX = 100;
+
+    const selectNum = document.getElementById('num-dynamics');
     const selectMidi = document.getElementById('midi-inputs');
     const selectTarget = document.getElementById('target-dynamic');
     const meterContainer = document.getElementById('meter-container');
@@ -187,13 +179,17 @@
     const alertDiv = document.getElementById('alert');
 
     // -------------------------------------------------------
-    // 3) Inicialización de Web MIDI y dibujo de rangos
+    // 2) Inicialización al cargar página
     // -------------------------------------------------------
     document.addEventListener('DOMContentLoaded', () => {
-      // Dibujamos rangos
+      // Setear dinámicas iniciales (6 matices)
+      buildDynamics(6);
+      populateTargetSelect();
+
+      // Dibujar rangos sobre la barra
       drawRanges();
 
-      // Iniciamos Web MIDI
+      // Iniciar Web MIDI
       if (navigator.requestMIDIAccess) {
         navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
       } else {
@@ -201,19 +197,103 @@
       }
     });
 
+    // -------------------------------------------------------
+    // 3) Construir arreglo "dynamics" según número de matices
+    // -------------------------------------------------------
+    function buildDynamics(count) {
+      // Definir nombres según count
+      let names = [];
+      if (count === 6) {
+        names = ['pp', 'p', 'mp', 'mf', 'f', 'ff'];
+      } else if (count === 4) {
+        names = ['pp', 'p', 'f', 'ff'];
+      } else if (count === 2) {
+        names = ['p', 'f'];
+      }
+
+      const span = BASE_MAX - BASE_MIN;               // 100 - 20 = 80
+      const block = Math.floor(span / names.length);  // tamaño entero de cada bloque
+
+      dynamics = names.map((name, i) => {
+        const min = BASE_MIN + i * block;
+        let max;
+        if (i < names.length - 1) {
+          max = BASE_MIN + (i + 1) * block - 1;
+        } else {
+          max = BASE_MAX;
+        }
+        // Asegurar que no quede hueco:
+        return { name, min, max, color: pickColor(i) };
+      });
+    }
+
+    // -------------------------------------------------------
+    // 4) Función para asignar un color a cada matiz según índice
+    // -------------------------------------------------------
+    function pickColor(index) {
+      // Para 6: mismos colores que antes
+      const palette6 = ['#6495ED', '#3CB371', '#FFD700', '#FFA500', '#FF4500', '#8B008B'];
+      // Para 4: reutilizar algunos o elegir aproximados
+      const palette4 = ['#6495ED', '#3CB371', '#FF4500', '#8B008B'];
+      // Para 2: p en verde, f en rojo
+      const palette2 = ['#3CB371', '#FF4500'];
+
+      if (dynamics.length === 6) {
+        return palette6[index];
+      } else if (dynamics.length === 4) {
+        return palette4[index];
+      } else {
+        return palette2[index];
+      }
+    }
+
+    // -------------------------------------------------------
+    // 5) Llenar selectTarget con los nombres de "dynamics"
+    // -------------------------------------------------------
+    function populateTargetSelect() {
+      selectTarget.innerHTML = '';
+      const defaultOpt = document.createElement('option');
+      defaultOpt.value = '';
+      defaultOpt.textContent = '-- Ninguno --';
+      selectTarget.appendChild(defaultOpt);
+
+      dynamics.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.name;
+        opt.textContent = d.name;
+        selectTarget.appendChild(opt);
+      });
+      targetDynamic = null;
+    }
+
+    // -------------------------------------------------------
+    // 6) Control de cambio en número de matices
+    // -------------------------------------------------------
+    selectNum.addEventListener('change', () => {
+      const count = parseInt(selectNum.value, 10);
+      // Reconstruir dinámicas y actualizar selectTarget y gráfico
+      buildDynamics(count);
+      populateTargetSelect();
+      clearMeter();
+      clearRanges();
+      drawRanges();
+    });
+
+    // -------------------------------------------------------
+    // 7) Inicialización Web MIDI
+    // -------------------------------------------------------
     function onMIDISuccess(access) {
       midiAccess = access;
       populateMidiInputs();
       midiAccess.onstatechange = populateMidiInputs;
     }
-
     function onMIDIFailure(err) {
       console.error('Error al acceder a MIDI:', err);
       alert('No se pudo acceder a los dispositivos MIDI.');
     }
 
     // -------------------------------------------------------
-    // 4) Llenar el <select> con los dispositivos MIDI disponibles
+    // 8) Llenar el <select> con los dispositivos MIDI disponibles
     // -------------------------------------------------------
     function populateMidiInputs() {
       const inputs = Array.from(midiAccess.inputs.values());
@@ -254,7 +334,7 @@
     }
 
     // -------------------------------------------------------
-    // 5) Cambio de dispositivo MIDI seleccionado
+    // 9) Cambio de dispositivo MIDI seleccionado
     // -------------------------------------------------------
     selectMidi.addEventListener('change', () => {
       if (selectedInput) {
@@ -263,7 +343,7 @@
       const chosenId = selectMidi.value;
       if (!chosenId) {
         selectedInput = null;
-        resetMeter();
+        clearMeter();
         return;
       }
       const input = midiAccess.inputs.get(chosenId);
@@ -274,12 +354,12 @@
       selectedInput = input;
       failureCount = 0;
       updateFailureCount();
-      resetMeter();
+      clearMeter();
       input.onmidimessage = handleMidiMessage;
     }
 
     // -------------------------------------------------------
-    // 6) Selección de matiz objetivo
+    // 10) Selección de matiz objetivo
     // -------------------------------------------------------
     selectTarget.addEventListener('change', () => {
       const name = selectTarget.value;
@@ -290,7 +370,7 @@
     });
 
     // -------------------------------------------------------
-    // 7) Manejo de mensajes MIDI entrantes (solo NOTE ON)
+    // 11) Manejo de mensajes MIDI entrantes (solo NOTE ON)
     // -------------------------------------------------------
     function handleMidiMessage(event) {
       const [status, note, velocity] = event.data;
@@ -301,16 +381,16 @@
     }
 
     // -------------------------------------------------------
-    // 8) Actualizar la barra de intensidad y lógica de matiz
+    // 12) Actualizar la barra de intensidad y lógica de matiz
     // -------------------------------------------------------
     function updateMeter(velocity) {
       velValSpan.textContent = velocity;
-      const dyn = dynamicFromVelocity(velocity);
+      const dyn = dynamics.find(d => velocity >= d.min && velocity <= d.max) || null;
       const dynName = dyn ? dyn.name : '–';
       currentDynamicSpan.textContent = dynName;
 
-      // Mapear 20→0% y 100→100%
-      const percent = ((velocity - 20) / (100 - 20)) * 100;
+      // Mapear BASE_MIN→0% y BASE_MAX→100%
+      const percent = ((velocity - BASE_MIN) / (BASE_MAX - BASE_MIN)) * 100;
       meterBar.style.width = Math.max(0, Math.min(percent, 100)) + '%';
       meterBar.style.backgroundColor = dyn ? dyn.color : 'gray';
 
@@ -326,7 +406,7 @@
       }
     }
 
-    function resetMeter() {
+    function clearMeter() {
       velValSpan.textContent = '–';
       currentDynamicSpan.textContent = '–';
       meterBar.style.width = '0%';
@@ -335,6 +415,7 @@
       failureCount = 0;
       updateFailureCount();
     }
+
     function updateFailureCount() {
       failureCountSpan.textContent = failureCount;
     }
@@ -346,30 +427,39 @@
     }
 
     // -------------------------------------------------------
-    // 9) Dibujar líneas divisorias y etiquetas para cada matiz
+    // 13) Dibujar líneas divisorias y etiquetas para cada matiz
     // -------------------------------------------------------
     function drawRanges() {
       dynamics.forEach((d, index) => {
-        // 9.1) Etiqueta en el centro del rango
+        // 13.1) Etiqueta en el centro del rango
         const centerVel = (d.min + d.max) / 2;
-        // Mapear 20→0% y 100→100%
-        const centerPct = ((centerVel - 20) / (100 - 20)) * 100;
+        const centerPct = ((centerVel - BASE_MIN) / (BASE_MAX - BASE_MIN)) * 100;
         const label = document.createElement('span');
         label.classList.add('range-label');
         label.style.left = centerPct.toFixed(2) + '%';
         label.textContent = d.name;
         meterContainer.appendChild(label);
 
-        // 9.2) Separador en el límite superior (excepto el último)
+        // 13.2) Separador en el límite superior (excepto el último)
         if (index < dynamics.length - 1) {
           const boundaryVel = d.max;
-          const boundaryPct = ((boundaryVel - 20) / (100 - 20)) * 100;
+          const boundaryPct = ((boundaryVel - BASE_MIN) / (BASE_MAX - BASE_MIN)) * 100;
           const sep = document.createElement('div');
           sep.classList.add('separator');
           sep.style.left = boundaryPct.toFixed(2) + '%';
           meterContainer.appendChild(sep);
         }
       });
+    }
+
+    // -------------------------------------------------------
+    // 14) Limpiar separadores y etiquetas previas
+    // -------------------------------------------------------
+    function clearRanges() {
+      const oldSeparators = meterContainer.querySelectorAll('.separator');
+      const oldLabels = meterContainer.querySelectorAll('.range-label');
+      oldSeparators.forEach(el => el.remove());
+      oldLabels.forEach(el => el.remove());
     }
   </script>
 </body>
