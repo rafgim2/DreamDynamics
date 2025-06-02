@@ -75,7 +75,7 @@
       width: 0%;
       background-color: gray;
       transition: width 0.05s ease-out, background-color 0.1s;
-      z-index: 2; /* por debajo de las etiquetas */
+      z-index: 2; /* por debajo de separadores y etiquetas */
     }
     /* Líneas divisorias negras, ancho 2px */
     .separator {
@@ -84,7 +84,7 @@
       bottom: 0;
       width: 2px;
       background-color: #000;
-      z-index: 1;
+      z-index: 4; /* ahora por encima de la barra */
     }
     /* Etiquetas de texto sobre cada rango */
     .range-label {
@@ -94,7 +94,7 @@
       font-size: 0.75rem;
       font-weight: bold;
       color: #000;
-      z-index: 3;                 /* por encima de #meter-bar */
+      z-index: 5;                 /* por encima de separadores y barra */
       white-space: nowrap;
     }
     #current-info {
@@ -157,12 +157,12 @@
     // 1) Definición de rangos y colores para cada matiz
     // -------------------------------------------------------
     const dynamics = [
-      { name: 'pp',  min: 0,  max: 33,  color: '#6495ED' },
+      { name: 'pp',  min: 20,  max: 33,  color: '#6495ED' },
       { name: 'p',   min: 34,  max: 46,  color: '#3CB371' },
       { name: 'mp',  min: 47,  max: 59,  color: '#FFD700' },
       { name: 'mf',  min: 60,  max: 72,  color: '#FFA500' },
       { name: 'f',   min: 73,  max: 85,  color: '#FF4500' },
-      { name: 'ff',  min: 86,  max: 127, color: '#8B008B' }
+      { name: 'ff',  min: 86,  max: 100, color: '#8B008B' }
     ];
 
     function dynamicFromVelocity(vel) {
