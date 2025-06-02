@@ -21,7 +21,7 @@
       /* Marco verde alrededor de todo lo que se muestra */
       border: 5px solid #008000;
       padding: 20px;
-      /* Opcional: ligerísimo fondo blanco para separar del verde pastel */
+      /* Opcional: ligero fondo blanco para separar del verde pastel */
       background-color: #ffffff;
       box-sizing: border-box;
       border-radius: 8px;
@@ -157,12 +157,12 @@
     // 1) Definición de rangos y colores para cada matiz
     // -------------------------------------------------------
     const dynamics = [
-      { name: 'pp', min: 1,   max: 20,  color: '#6495ED' },
-      { name: 'p',  min: 21,  max: 40,  color: '#3CB371' },
-      { name: 'mp', min: 41,  max: 60,  color: '#FFD700' },
-      { name: 'mf', min: 61,  max: 80,  color: '#FFA500' },
-      { name: 'f',  min: 81,  max: 100, color: '#FF4500' },
-      { name: 'ff', min: 101, max: 127, color: '#8B008B' }
+      { name: 'pp',  min: 20,  max: 33,  color: '#6495ED' },
+      { name: 'p',   min: 34,  max: 46,  color: '#3CB371' },
+      { name: 'mp',  min: 47,  max: 59,  color: '#FFD700' },
+      { name: 'mf',  min: 60,  max: 72,  color: '#FFA500' },
+      { name: 'f',   min: 73,  max: 85,  color: '#FF4500' },
+      { name: 'ff',  min: 86,  max: 100, color: '#8B008B' }
     ];
 
     function dynamicFromVelocity(vel) {
@@ -309,8 +309,9 @@
       const dynName = dyn ? dyn.name : '–';
       currentDynamicSpan.textContent = dynName;
 
-      const percent = (velocity / 127) * 100;
-      meterBar.style.width = percent + '%';
+      // Mapear 20→0% y 100→100%
+      const percent = ((velocity - 20) / (100 - 20)) * 100;
+      meterBar.style.width = Math.max(0, Math.min(percent, 100)) + '%';
       meterBar.style.backgroundColor = dyn ? dyn.color : 'gray';
 
       if (targetDynamic) {
@@ -351,7 +352,8 @@
       dynamics.forEach((d, index) => {
         // 9.1) Etiqueta en el centro del rango
         const centerVel = (d.min + d.max) / 2;
-        const centerPct = (centerVel / 127) * 100;
+        // Mapear 20→0% y 100→100%
+        const centerPct = ((centerVel - 20) / (100 - 20)) * 100;
         const label = document.createElement('span');
         label.classList.add('range-label');
         label.style.left = centerPct.toFixed(2) + '%';
@@ -361,7 +363,7 @@
         // 9.2) Separador en el límite superior (excepto el último)
         if (index < dynamics.length - 1) {
           const boundaryVel = d.max;
-          const boundaryPct = (boundaryVel / 127) * 100;
+          const boundaryPct = ((boundaryVel - 20) / (100 - 20)) * 100;
           const sep = document.createElement('div');
           sep.classList.add('separator');
           sep.style.left = boundaryPct.toFixed(2) + '%';
