@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>DreamDynamics</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      /* Fondo de página: verde pastel muy claro */
+      background-color: #ccffcc;
+      display: flex;
+      justify-content: center;
+    }
+    #wrapper {
+      width: 90%;
+      max-width: 800px;
+      text-align: center;
+      margin-top: 20px;
+      /* Marco verde alrededor de todo lo que se muestra */
+      border: 5px solid #008000;
+      padding: 20px;
+      /* Opcional: ligerísimo fondo blanco para separar del verde pastel */
+      background-color: #ffffff;
+      box-sizing: border-box;
+      border-radius: 8px;
+    }
+    h1 {
+      margin-bottom: 5px;
+      font-size: 2rem;
+      color: #333;
+    }
+    a.credit {
+      display: block;
+      margin-bottom: 30px;
+      font-size: 0.9rem;
+      color: #0066cc;
+      text-decoration: none;
+    }
+    a.credit:hover {
+      text-decoration: underline;
+    }
+    label {
+      display: block;
+      margin: 10px auto 5px;
+      text-align: center;
+      font-size: 1rem;
+      color: #333;
+    }
+    select {
+      padding: 5px;
+      font-size: 1rem;
+      width: 100%;
+      max-width: 300px;
+      margin: 0 auto 10px;
+      display: block;
+    }
+    /* Contenedor principal de la barra */
+    #meter-container {
+      position: relative;
+      width: 100%;
+      height: 40px; /* espacio para etiquetas + barra */
+      background-color: #ddd;
+      border-radius: 4px;
+      margin-top: 50px;
+      overflow: visible; /* para que las etiquetas se vean */
+    }
+    /* La barra que muestra la intensidad */
+    #meter-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 100%;
+      width: 0%;
+      background-color: gray;
+      transition: width 0.05s ease-out, background-color 0.1s;
+      z-index: 2; /* por debajo de las etiquetas */
+    }
+    /* Líneas divisorias negras, ancho 2px */
+    .separator {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background-color: #000;
+      z-index: 1;
+    }
+    /* Etiquetas de texto sobre cada rango */
+    .range-label {
+      position: absolute;
+      bottom: 100%;               /* justo encima del contenedor */
+      transform: translateX(-50%);
+      font-size: 0.75rem;
+      font-weight: bold;
+      color: #000;
+      z-index: 3;                 /* por encima de #meter-bar */
+      white-space: nowrap;
+    }
+    #current-info {
+      margin-top: 10px;
+      font-size: 1.1rem;
+      color: #333;
+    }
+    #alert {
+      margin-top: 10px;
+      font-weight: bold;
+      color: red;
+      visibility: hidden;
+    }
+    #failures {
+      margin-top: 5px;
+      font-size: 1rem;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <div id="wrapper">
+    <h1>DreamDynamics</h1>
+    <a href="https://www.youtube.com/@rafgim" target="_blank" class="credit">© By Rafael Gimeno</a>
+
+    <label for="midi-inputs">1. Selecciona el dispositivo MIDI:</label>
+    <select id="midi-inputs">
+      <option value="">(Cargando dispositivos…)</option>
+    </select>
+
+    <label for="target-dynamic">2. Selecciona el matiz objetivo:</label>
+    <select id="target-dynamic">
+      <option value="">-- Ninguno --</option>
+      <option value="pp">pp</option>
+      <option value="p">p</option>
+      <option value="mp">mp</option>
+      <option value="mf">mf</option>
+      <option value="f">f</option>
+      <option value="ff">ff</option>
+    </select>
+
+    <div id="meter-container">
+      <div id="meter-bar"></div>
+    </div>
+
+    <div id="current-info">
+      Velocidad actual: <span id="vel-val">–</span>
+      &nbsp;|&nbsp; Matiz actual: <span id="current-dynamic">–</span>
+    </div>
+
+    <div id="failures">
+      Fallos (fuera del rango): <span id="failure-count">0</span>
+    </div>
+
+    <div id="alert">⚠️ Fuera del rango objetivo</div>
+  </div>
+
+  <script>
+    // -------------------------------------------------------
+    // 1) Definición de rangos y colores para cada matiz
+    // -------------------------------------------------------
+    const dynamics = [
+      { name: 'pp', min: 1,   max: 20,  color: '#6495ED' },
+      { name: 'p',  min: 21,  max: 40,  color: '#3CB371' },
+      { name: 'mp', min: 41,  max: 60,  color: '#FFD700' },
+      { name: 'mf', min: 61,  max: 80,  color: '#FFA500' },
+      { name: 'f',  min: 81,  max: 100, color: '#FF4500' },
+      { name: 'ff', min: 101, max: 127, color: '#8B008B' }
+    ];
+
+    function dynamicFromVelocity(vel) {
+      return dynamics.find(d => vel >= d.min && vel <= d.max) || null;
+    }
+
+    // -------------------------------------------------------
+    // 2) Variables globales y elementos del DOM
+    // -------------------------------------------------------
+    let midiAccess = null;
+    let selectedInput = null;
+    let targetDynamic = null;
+    let failureCount = 0;
+
+    const selectMidi = document.getElementById('midi-inputs');
+    const selectTarget = document.getElementById('target-dynamic');
+    const meterContainer = document.getElementById('meter-container');
+    const meterBar = document.getElementById('meter-bar');
+    const velValSpan = document.getElementById('vel-val');
+    const currentDynamicSpan = document.getElementById('current-dynamic');
+    const failureCountSpan = document.getElementById('failure-count');
+    const alertDiv = document.getElementById('alert');
+
+    // -------------------------------------------------------
+    // 3) Inicialización de Web MIDI y dibujo de rangos
+    // -------------------------------------------------------
+    document.addEventListener('DOMContentLoaded', () => {
+      // Dibujamos rangos
+      drawRanges();
+
+      // Iniciamos Web MIDI
+      if (navigator.requestMIDIAccess) {
+        navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
+      } else {
+        alert('Este navegador no soporta la Web MIDI API.');
+      }
+    });
+
+    function onMIDISuccess(access) {
+      midiAccess = access;
+      populateMidiInputs();
+      midiAccess.onstatechange = populateMidiInputs;
+    }
+
+    function onMIDIFailure(err) {
+      console.error('Error al acceder a MIDI:', err);
+      alert('No se pudo acceder a los dispositivos MIDI.');
+    }
+
+    // -------------------------------------------------------
+    // 4) Llenar el <select> con los dispositivos MIDI disponibles
+    // -------------------------------------------------------
+    function populateMidiInputs() {
+      const inputs = Array.from(midiAccess.inputs.values());
+      const previous = selectMidi.value;
+      selectMidi.innerHTML = '';
+
+      if (inputs.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '(No se detectan dispositivos MIDI)';
+        selectMidi.appendChild(opt);
+        selectedInput = null;
+        return;
+      }
+
+      const defaultOpt = document.createElement('option');
+      defaultOpt.value = '';
+      defaultOpt.textContent = '-- Selecciona un dispositivo --';
+      selectMidi.appendChild(defaultOpt);
+
+      inputs.forEach(input => {
+        const opt = document.createElement('option');
+        opt.value = input.id;
+        opt.textContent = input.name;
+        if (input.id === previous) {
+          opt.selected = true;
+        }
+        selectMidi.appendChild(opt);
+      });
+
+      if (previous) {
+        const restored = inputs.find(i => i.id === previous);
+        if (restored) {
+          selectMidi.value = previous;
+          setMidiInput(restored);
+        }
+      }
+    }
+
+    // -------------------------------------------------------
+    // 5) Cambio de dispositivo MIDI seleccionado
+    // -------------------------------------------------------
+    selectMidi.addEventListener('change', () => {
+      if (selectedInput) {
+        selectedInput.onmidimessage = null;
+      }
+      const chosenId = selectMidi.value;
+      if (!chosenId) {
+        selectedInput = null;
+        resetMeter();
+        return;
+      }
+      const input = midiAccess.inputs.get(chosenId);
+      setMidiInput(input);
+    });
+
+    function setMidiInput(input) {
+      selectedInput = input;
+      failureCount = 0;
+      updateFailureCount();
+      resetMeter();
+      input.onmidimessage = handleMidiMessage;
+    }
+
+    // -------------------------------------------------------
+    // 6) Selección de matiz objetivo
+    // -------------------------------------------------------
+    selectTarget.addEventListener('change', () => {
+      const name = selectTarget.value;
+      targetDynamic = dynamics.find(d => d.name === name) || null;
+      failureCount = 0;
+      updateFailureCount();
+      hideAlert();
+    });
+
+    // -------------------------------------------------------
+    // 7) Manejo de mensajes MIDI entrantes (solo NOTE ON)
+    // -------------------------------------------------------
+    function handleMidiMessage(event) {
+      const [status, note, velocity] = event.data;
+      const command = status & 0xf0;
+      if (command === 0x90 && velocity > 0) {
+        updateMeter(velocity);
+      }
+    }
+
+    // -------------------------------------------------------
+    // 8) Actualizar la barra de intensidad y lógica de matiz
+    // -------------------------------------------------------
+    function updateMeter(velocity) {
+      velValSpan.textContent = velocity;
+      const dyn = dynamicFromVelocity(velocity);
+      const dynName = dyn ? dyn.name : '–';
+      currentDynamicSpan.textContent = dynName;
+
+      const percent = (velocity / 127) * 100;
+      meterBar.style.width = percent + '%';
+      meterBar.style.backgroundColor = dyn ? dyn.color : 'gray';
+
+      if (targetDynamic) {
+        const inside = velocity >= targetDynamic.min && velocity <= targetDynamic.max;
+        if (!inside) {
+          failureCount++;
+          updateFailureCount();
+          showAlert();
+        } else {
+          hideAlert();
+        }
+      }
+    }
+
+    function resetMeter() {
+      velValSpan.textContent = '–';
+      currentDynamicSpan.textContent = '–';
+      meterBar.style.width = '0%';
+      meterBar.style.backgroundColor = 'gray';
+      hideAlert();
+      failureCount = 0;
+      updateFailureCount();
+    }
+    function updateFailureCount() {
+      failureCountSpan.textContent = failureCount;
+    }
+    function showAlert() {
+      alertDiv.style.visibility = 'visible';
+    }
+    function hideAlert() {
+      alertDiv.style.visibility = 'hidden';
+    }
+
+    // -------------------------------------------------------
+    // 9) Dibujar líneas divisorias y etiquetas para cada matiz
+    // -------------------------------------------------------
+    function drawRanges() {
+      dynamics.forEach((d, index) => {
+        // 9.1) Etiqueta en el centro del rango
+        const centerVel = (d.min + d.max) / 2;
+        const centerPct = (centerVel / 127) * 100;
+        const label = document.createElement('span');
+        label.classList.add('range-label');
+        label.style.left = centerPct.toFixed(2) + '%';
+        label.textContent = d.name;
+        meterContainer.appendChild(label);
+
+        // 9.2) Separador en el límite superior (excepto el último)
+        if (index < dynamics.length - 1) {
+          const boundaryVel = d.max;
+          const boundaryPct = (boundaryVel / 127) * 100;
+          const sep = document.createElement('div');
+          sep.classList.add('separator');
+          sep.style.left = boundaryPct.toFixed(2) + '%';
+          meterContainer.appendChild(sep);
+        }
+      });
+    }
+  </script>
+</body>
+</html>
