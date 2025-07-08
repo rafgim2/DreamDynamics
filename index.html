@@ -373,17 +373,20 @@
 
       const percent = ((velocity - BASE_MIN) / (BASE_MAX - BASE_MIN)) * 100;
       meterBar.style.width = Math.max(0, Math.min(percent, 100)) + '%';
-      meterBar.style.backgroundColor = dyn ? dyn.color : 'gray';
 
       if (targetDynamic) {
         const inside = velocity >= targetDynamic.min && velocity <= targetDynamic.max;
         if (!inside) {
+          meterBar.style.backgroundColor = 'red';
           failureCount++;
           updateFailureCount();
           showAlert();
         } else {
+          meterBar.style.backgroundColor = 'green';
           hideAlert();
         }
+      } else {
+        meterBar.style.backgroundColor = dyn ? dyn.color : 'gray';
       }
     }
 
