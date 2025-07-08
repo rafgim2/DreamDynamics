@@ -123,9 +123,9 @@
     <!-- Selector para número de matices -->
     <label for="num-dynamics">Cantidad de matices:</label>
     <select id="num-dynamics">
-      <option value="6" selected>6 matices</option>
+      <option value="6">6 matices</option>
       <option value="4">4 matices</option>
-      <option value="2">2 matices</option>
+      <option value="2" selected>2 matices</option>
     </select>
 
     <label for="midi-inputs">1. Selecciona el dispositivo MIDI:</label>
@@ -182,7 +182,7 @@
     // 2) Inicialización al cargar página
     // -------------------------------------------------------
     document.addEventListener('DOMContentLoaded', () => {
-      buildDynamics(6);
+      buildDynamics(2);        // ← Ahora por defecto 2 matices
       populateTargetSelect();
       drawRanges();
 
